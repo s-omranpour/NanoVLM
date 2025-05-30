@@ -1,1 +1,1 @@
-# NanoVLM
+# OmniVLMPlus
