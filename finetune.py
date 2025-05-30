@@ -20,6 +20,9 @@ def main():
         "OmniVLMPlus", add_help=False
     )
     parser.add_argument(
+        "--ckpt_path", default='weights/', type=str, help="checkpoint path"
+    )
+    parser.add_argument(
         "--token_reduction", default='shuffle', type=str, help="pool/shuffle"
     )
     parser.add_argument(
@@ -43,17 +46,12 @@ def main():
     parser.add_argument(
         "--num_workers", default=4, type=int, help="number of dataloader workers"
     )
-    
     args = parser.parse_args()
     
     
     ## Model
-    ckpt_path = 'weights/omnivlm+-pretrain/epoch=15-val_loss=3.84.ckpt'
     model = MultimodalLightningModel.load_from_checkpoint(
-        ckpt_path,
-    # model = MultimodalLightningModel(
-    #     enc_name="stabilityai/sd-vae-ft-ema", 
-    #     lm_name="HuggingFaceTB/SmolLM-135M",
+        args.ckpt_path,
         token_reduction_mode=args.token_reduction,
         token_reduction_factor=args.reduction_factor,
         image_positional_encoding=args.image_pe,
@@ -76,7 +74,6 @@ def main():
             'raven', 'robut_sqa', 'robut_wikisql', 'robut_wtq', 'scienceqa', 'screen2words',\
             'st_vqa', 'tabmwp', 'tallyqa', 'tat_qa', 'textcaps', 'textvqa', 'tqa', 'vistext',\
             'visual7w', 'visualmrc', 'vqarad', 'vqav2', 'vsr',\
-            
             'dvqa', 'localized_narratives', 'ocrvqa', 'plotqa', 'rendered_text', 'websight'
         ],
         eos_token=model.tokenizer.eos_token, 
@@ -103,12 +100,12 @@ def main():
     )
     
     ## Trainer
-    project = 'omnivlm+-finetune-cauldron'
-    name = f'pt-{args.image_pe}-{args.token_reduction}-{args.reduction_factor}-enc'
+    project = 'omnivlm+-finetune'
+    name = f'{args.ckpt_path.split("/")[-1]}--finetuned'
     wandb_logger = WandbLogger(
         project=project,
         name=name,
-        save_dir='/home/mila/s/soroush.omranpour/scratch/wandb'
+        save_dir='scratch/s/soorism/.wandb'
     )
     checkpoint_callback = ModelCheckpoint(
         dirpath=f"weights/{project}/",
@@ -121,15 +118,15 @@ def main():
         monitor="val_loss", min_delta=0.01, patience=5, verbose=False, mode="min"
     )
     trainer = L.Trainer(
-        max_epochs=10,
-        devices=2,
+        max_epochs=50,
+        devices=4,
         strategy='ddp_find_unused_parameters_true',
         accelerator="gpu", 
         logger=wandb_logger,
         accumulate_grad_batches=1,
         gradient_clip_val=1.,
         num_nodes=1,
-        callbacks=[checkpoint_callback, EarlyStopping],
+        callbacks=[checkpoint_callback, early_stop_callback],
         enable_checkpointing=True,
         enable_progress_bar=False
     )

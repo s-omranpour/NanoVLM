@@ -10,14 +10,17 @@ from lightning.pytorch.callbacks import ModelCheckpoint, EarlyStopping
 
 from src.models.vlm import MultimodalLightningModel
 from src.data.datasets import LlavaPretrainDataset
-from src.data.utils import get_split_loaders, get_test_loader
+from src.data.utils import get_split_loaders
 
 
-CACHE_DIR = "/home/mila/s/soroush.omranpour/scratch/hf_cache/"
+CACHE_DIR = "/scratch/s/soorism/hf_cache"
 
 def main():
     parser = argparse.ArgumentParser(
         "OmniVLMPlus", add_help=False
+    )
+    parser.add_argument(
+        "--lm_name", default='HuggingFaceTB/SmolLM2-360M', type=str, help="language model name"
     )
     parser.add_argument(
         "--token_reduction", default='shuffle', type=str, help="pool/shuffle"
@@ -49,7 +52,7 @@ def main():
     ## Model
     model = MultimodalLightningModel(
         enc_name="stabilityai/sd-vae-ft-ema", 
-        lm_name="HuggingFaceTB/SmolLM2-360M",
+        lm_name=args.lm_name,
         token_reduction_mode=args.token_reduction,
         token_reduction_factor=args.reduction_factor,
         image_positional_encoding=args.image_pe,
@@ -60,7 +63,7 @@ def main():
         freeze_encoder=True,
         freeze_lm=True,
         cache_dir=CACHE_DIR,
-        max_lr_steps=20000
+        max_lr_steps=50000
     )
     model.lm.train()
     model.image_encoder.train()
@@ -84,7 +87,7 @@ def main():
     
     ## Trainer
     project = 'omnivlm+-pretrain-llava'
-    name = f'SmolLM2-360M-{args.token_reduction}-{args.image_pe}'
+    name = f'{args.lm_name}-{args.token_reduction}-{args.image_pe}'
     wandb_logger = WandbLogger(
         project=project,
 	name=name,
@@ -101,8 +104,8 @@ def main():
         monitor="val_loss", min_delta=0.01, patience=5, verbose=False, mode="min"
     )
     trainer = L.Trainer(
-        max_epochs=20,
-        devices=2,
+        max_epochs=50,
+        devices=4,
         strategy='ddp_find_unused_parameters_true',
         accelerator="gpu", 
         logger=wandb_logger,
